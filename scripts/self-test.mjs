@@ -317,6 +317,100 @@ const okGrid = `<div class="flow n2"><div></div><div></div><div></div></div>`;
   rmSync(dir, { recursive: true, force: true });
 }
 
+{
+  const dir = makeRoot();
+  mkdirSync(join(dir, "web/src"), { recursive: true });
+  writeFileSync(join(dir, "web/src/main.ts"), "export function boot() { return 1; }\n");
+  writeFileSync(join(dir, "web/src/other.ts"), "export function helper() { return 2; }\n");
+  const r = spawnSync(node, [join(here, "bootstrap-architecture-map.mjs"), dir], { encoding: "utf8" });
+  const map = existsSync(join(dir, "tooling/arch-module-graph/module-file-map.json"))
+    ? JSON.parse(readFileSync(join(dir, "tooling/arch-module-graph/module-file-map.json"), "utf8"))
+    : { modules: {} };
+  const keys = Object.keys(map.modules || {});
+  r.status === 0 && keys.includes("web-src") && !keys.includes("web")
+    ? pass("bootstrap：web/src 不与顶层 web 双 zone")
+    : fail("bootstrap：web/src 不与顶层 web 双 zone", (r.stderr || "") + (r.stdout || "") + "\nkeys=" + keys.join(","));
+  rmSync(dir, { recursive: true, force: true });
+}
+
+{
+  const dir = makeRoot();
+  mkdirSync(join(dir, "my_pkg"), { recursive: true });
+  writeFileSync(join(dir, "my_pkg/store.py"), "def save():\n  pass\n");
+  const r = spawnSync(node, [join(here, "bootstrap-architecture-map.mjs"), dir], { encoding: "utf8" });
+  const map = existsSync(join(dir, "tooling/arch-module-graph/module-file-map.json"))
+    ? JSON.parse(readFileSync(join(dir, "tooling/arch-module-graph/module-file-map.json"), "utf8"))
+    : { modules: {} };
+  const html = existsSync(join(dir, "docs/product/architecture-overview.html"))
+    ? readFileSync(join(dir, "docs/product/architecture-overview.html"), "utf8")
+    : "";
+  r.status === 0 && map.modules["my-pkg"] && /"my-pkg":\s*\{/.test(html)
+    ? pass("bootstrap：下划线目录写成 kebab key")
+    : fail("bootstrap：下划线目录写成 kebab key", (r.stderr || "") + (r.stdout || "") + "\nkeys=" + Object.keys(map.modules).join(","));
+  rmSync(dir, { recursive: true, force: true });
+}
+
+{
+  const dir = makeRoot();
+  for (let i = 0; i < 9; i++) {
+    mkdirSync(join(dir, `step${i}`), { recursive: true });
+    const body = i === 8
+      ? "def run():\n  return 1\n"
+      : `from step${i + 1}.core import run\n\ndef run():\n  return run()\n`;
+    writeFileSync(join(dir, `step${i}/core.py`), body);
+  }
+  const r = spawnSync(node, [join(here, "bootstrap-architecture-map.mjs"), dir], { encoding: "utf8" });
+  const html = existsSync(join(dir, "docs/product/architecture-overview.html"))
+    ? readFileSync(join(dir, "docs/product/architecture-overview.html"), "utf8")
+    : "";
+  const hasOverflow = /<div class="flow n8">/.test(html) && (html.match(/<div class="flow n8">([\s\S]*?)<\/div>/)?.[1].match(/<div /g) || []).length > 15;
+  r.status === 0 && !hasOverflow
+    ? pass("bootstrap：作业链超过 8 站不写溢出 n8")
+    : fail("bootstrap：作业链超过 8 站不写溢出 n8", (r.stderr || "") + (r.stdout || ""));
+  rmSync(dir, { recursive: true, force: true });
+}
+
+{
+  const dir = makeRoot();
+  writeFileSync(join(dir, "main.py"), "def run():\n  pass\n");
+  writeFileSync(join(dir, "docs/product/architecture-overview.html"), "<html></html>\n");
+  const r = spawnSync(node, [join(here, "bootstrap-architecture-map.mjs"), dir], { encoding: "utf8" });
+  r.status === 2
+    ? pass("bootstrap：仅有总图时拒绝无 --force 覆盖")
+    : fail("bootstrap：仅有总图时拒绝无 --force 覆盖", `status=${r.status}\n` + (r.stderr || "") + (r.stdout || ""));
+  rmSync(dir, { recursive: true, force: true });
+}
+
+{
+  const dir = makeRoot();
+  mkdirSync(join(dir, "generation"), { recursive: true });
+  writeFileSync(join(dir, "generation/content.py"), '"""选题写成稿。"""\ndef generate():\n  x = f"""\nreturn prompt\n"""\n  return x\n');
+  writeFileSync(join(dir, "README.md"), "# 工作台\n");
+  const r = spawnSync(node, [join(here, "bootstrap-architecture-map.mjs"), dir], { encoding: "utf8" });
+  const html = existsSync(join(dir, "docs/product/architecture-overview.html"))
+    ? readFileSync(join(dir, "docs/product/architecture-overview.html"), "utf8")
+    : "";
+  r.status === 0 && html.includes("选题写成稿") && !html.includes("return prompt")
+    ? pass("bootstrap：firstDoc 不误吃 f-string")
+    : fail("bootstrap：firstDoc 不误吃 f-string", (r.stderr || "") + (r.stdout || ""));
+  rmSync(dir, { recursive: true, force: true });
+}
+
+{
+  const dir = makeRoot();
+  mkdirSync(join(dir, "web/static"), { recursive: true });
+  writeFileSync(join(dir, "web/workspace_service.py"), "def open_workspace():\n  return {}\n");
+  writeFileSync(join(dir, "web/static/app.js"), "export function boot() {}\n");
+  const r = spawnSync(node, [join(here, "bootstrap-architecture-map.mjs"), dir], { encoding: "utf8" });
+  const html = existsSync(join(dir, "docs/product/architecture-overview.html"))
+    ? readFileSync(join(dir, "docs/product/architecture-overview.html"), "utf8")
+    : "";
+  r.status === 0 && html.includes("web/workspace_service.py") && !html.includes('p: "web/static/app.js"')
+    ? pass("bootstrap：web 入口优先服务文件而不是 static/app.js")
+    : fail("bootstrap：web 入口优先服务文件而不是 static/app.js", (r.stderr || "") + (r.stdout || ""));
+  rmSync(dir, { recursive: true, force: true });
+}
+
 if (failed) {
   console.error(`self-test: ${failed} failed`);
   process.exit(1);

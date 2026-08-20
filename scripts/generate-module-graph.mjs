@@ -187,6 +187,7 @@ const parseImports = (posix) => {
       /\bfrom\s+['"]([^'"]+)['"]/g,
       /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
       /\brequire\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
+      /\bimport\s+['"]([^'"]+)['"]/g,
     ]) {
       for (const m of src.matchAll(re)) specs.push(m[1]);
     }
@@ -238,7 +239,7 @@ const extractIo = (posix) => {
     sigs.push(`${name}(${p}) → ${r}`);
   };
   if (PY_EXT.has(ext)) {
-    for (const m of src.matchAll(/^def\s+(\w+)\s*\(([^)]*)\)\s*(?:->\s*([^:]+))?:/gm)) push(m[1], m[2], m[3]);
+    for (const m of src.matchAll(/^(?:async\s+)?def\s+(\w+)\s*\(([^)]*)\)\s*(?:->\s*([^:]+))?:/gm)) push(m[1], m[2], m[3]);
   } else if (RS_EXT.has(ext)) {
     for (const m of src.matchAll(/\bpub\s+(?:async\s+)?fn\s+(\w+)\s*\(([^)]*)\)\s*(?:->\s*([^{]+))?/g)) {
       push(m[1], m[2], m[3]);

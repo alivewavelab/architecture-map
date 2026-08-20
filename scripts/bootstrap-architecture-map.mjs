@@ -19,6 +19,7 @@ const SKIP_DIR = new Set([
   ".git", "node_modules", "dist", "build", "out", "target", "vendor",
   ".venv", "venv", "__pycache__", ".next", "coverage", ".turbo",
   "input", "tmp", ".idea", ".vscode", ".cursor", "docs", "tooling",
+  "tests", "__tests__", "spec",
 ]);
 const SOURCE_EXT = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".py", ".rs"]);
 const JS_EXT = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]);
@@ -34,7 +35,7 @@ const toPosix = (path) => relative(root, path).split(sep).join("/");
 const walk = (directory, depth = 8) => {
   if (!existsSync(directory) || depth < 0) return [];
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
-    if (SKIP_DIR.has(entry.name)) return [];
+    if (SKIP_DIR.has(entry.name) || entry.name.startsWith(".")) return [];
     const path = resolve(directory, entry.name);
     return entry.isDirectory() ? walk(path, depth - 1) : [path];
   });
@@ -53,13 +54,21 @@ const dominantExts = (files) => {
     counts.set(ext, (counts.get(ext) || 0) + 1);
   }
   if (counts.size === 0) return null;
-  const style = styleFor(counts.keys());
+  let py = 0;
+  let js = 0;
+  let rs = 0;
+  for (const [ext, n] of counts) {
+    if (ext === ".py") py += n;
+    else if (ext === ".rs") rs += n;
+    else if (JS_EXT.has(ext)) js += n;
+  }
+  const style = js >= py && js >= rs ? "kebab" : "snake";
   if (style === "snake") {
     const snake = [...counts.keys()].filter((e) => e === ".py" || e === ".rs");
     return new Set(snake.length ? snake : counts.keys());
   }
-  const js = [...counts.keys()].filter((e) => JS_EXT.has(e));
-  return new Set(js.length ? js : counts.keys());
+  const jsExts = [...counts.keys()].filter((e) => JS_EXT.has(e));
+  return new Set(jsExts.length ? jsExts : counts.keys());
 };
 
 const discoverZones = () => {
@@ -80,7 +89,8 @@ const discoverZones = () => {
 
   for (const hint of NESTED_HINTS) add(hint);
   for (const entry of readdirSync(root, { withFileTypes: true })) {
-    if (!entry.isDirectory() || SKIP_DIR.has(entry.name)) continue;
+    if (!entry.isDirectory() || SKIP_DIR.has(entry.name) || entry.name.startsWith(".")) continue;
+    if (zones.some((z) => z.dir === entry.name || z.dir.startsWith(`${entry.name}/`))) continue;
     add(entry.name);
   }
   const rootFiles = existsSync(root)
@@ -118,7 +128,7 @@ const extractIo = (posix) => {
     sigs.push(`${name}(${p}) → ${r}`);
   };
   if (PY_EXT.has(ext)) {
-    for (const m of src.matchAll(/^def\s+(\w+)\s*\(([^)]*)\)\s*(?:->\s*([^:]+))?:/gm)) push(m[1], m[2], m[3]);
+    for (const m of src.matchAll(/^(?:async\s+)?def\s+(\w+)\s*\(([^)]*)\)\s*(?:->\s*([^:]+))?:/gm)) push(m[1], m[2], m[3]);
   } else if (RS_EXT.has(ext)) {
     for (const m of src.matchAll(/\bpub\s+(?:async\s+)?fn\s+(\w+)\s*\(([^)]*)\)\s*(?:->\s*([^{]+))?/g)) {
       push(m[1], m[2], m[3]);
@@ -135,7 +145,8 @@ const extractIo = (posix) => {
 const firstDoc = (posix) => {
   if (!posix || !existsSync(resolve(root, posix))) return "";
   const src = readFileSync(resolve(root, posix), "utf8");
-  const m = src.match(/^[ru]?["']{3}([\s\S]*?)["']{3}/m) || src.match(/^\s*\/\*\*([\s\S]*?)\*\//);
+  const head = src.replace(/^(?:#!.*\r?\n)?(?:#.*\r?\n)*/, "");
+  const m = head.match(/^[ru]?["']{3}([\s\S]*?)["']{3}/) || head.match(/^\/\*\*([\s\S]*?)\*\//);
   return (m?.[1] || "").trim().split(/\r?\n/).map((l) => l.replace(/^\s*\*\s?/, "")).join(" ").trim();
 };
 
@@ -153,15 +164,21 @@ const readmePlain = () => {
 
 const slug = (dir) => {
   if (dir === ".") return "workspace";
-  return dir.replace(/[^\w]+/g, "-").replace(/^-|-$/g, "").toLowerCase() || "mod";
+  return dir.replace(/[\W_]+/g, "-").replace(/^-|-$/g, "").toLowerCase() || "mod";
 };
 
 const pickEntry = (files) => {
   const ranked = files.filter((f) => SOURCE_EXT.has(extname(f)));
-  const prefer = ranked.find((f) => /(?:^|\/)(main|index|mod|app|page)\.[^/]+$/.test(toPosix(f)));
-  if (prefer) return prefer;
-  const notInit = ranked.find((f) => !/(?:^|\/)__init__\.py$/.test(toPosix(f)));
-  return notInit || ranked[0];
+  const score = (file) => {
+    const p = toPosix(file);
+    if (/(?:^|\/)(static|dist|assets|public)\//.test(p)) return 80;
+    if (/(?:^|\/)(main|index|mod|app|page)\.[^/]+$/.test(p)) return 0;
+    if (/(?:^|\/)\w*service\w*\.[^/]+$/.test(p)) return 1;
+    if (PY_EXT.has(extname(p)) && !p.endsWith("__init__.py")) return 2;
+    if (p.endsWith("__init__.py")) return 90;
+    return 10;
+  };
+  return [...ranked].sort((a, b) => score(a) - score(b) || toPosix(a).localeCompare(toPosix(b)))[0];
 };
 
 const js = (value) => JSON.stringify(value);
@@ -179,15 +196,21 @@ const destOverview = resolve(root, "docs/product/architecture-overview.html");
 mkdirSync(destTooling, { recursive: true });
 mkdirSync(dirname(destOverview), { recursive: true });
 
-if (!force && existsSync(destOverview) && existsSync(resolve(destTooling, "module-file-map.json"))) {
-  console.error("已有总图与映射表。确认覆盖请加 --force。");
+if (!force && (existsSync(destOverview) || existsSync(resolve(destTooling, "module-file-map.json")))) {
+  console.error("已有总图或映射表。确认覆盖请加 --force。");
   process.exit(2);
 }
 
 copyFileSync(resolve(skillDir, "validate-module-file-map.mjs"), resolve(destTooling, "validate-module-file-map.mjs"));
 copyFileSync(resolve(skillDir, "generate-module-graph.mjs"), resolve(destTooling, "generate-module-graph.mjs"));
 
-const bucket = ["web/src/lib/utils.ts", "src/lib/utils.ts", "lib/utils.ts"].filter((p) => existsSync(resolve(root, p)));
+const bucket = new Set(["web/src/lib/utils.ts", "src/lib/utils.ts", "lib/utils.ts"].filter((p) => existsSync(resolve(root, p))));
+for (const zone of zones) {
+  for (const file of zone.files) {
+    const p = toPosix(file);
+    if (/(?:^|\/)utils?\.ts$/.test(p)) bucket.add(p);
+  }
+}
 const unowned = [];
 if (existsSync(resolve(root, "migrations"))) unowned.push({ path: "migrations/", reason: "一次性迁移" });
 
@@ -221,7 +244,7 @@ for (const zone of zones) {
     role: label,
     inn: entryIo ? entryIo.split("→")[0].trim() : "本层输入",
     out: entryIo && entryIo.includes("→") ? entryIo.split("→").slice(-1)[0].trim() : "本层输出",
-    status: "已通。",
+    status: "待核。",
     files,
   });
 }
@@ -237,7 +260,7 @@ const zoneLit = zones.map((z) => {
   return `  { dir: ${js(z.dir)}, exts: new Set([${extLit(z.exts)}]), style: ${js(z.style)}${extra} }`;
 }).join(",\n");
 gate = gate.replace(/const WATCH_ZONES = \[[\s\S]*?\];/, `const WATCH_ZONES = [\n${zoneLit}\n];`);
-gate = gate.replace(/const ALLOWED_BUCKET_FILES = \[[\s\S]*?\];/, `const ALLOWED_BUCKET_FILES = ${JSON.stringify(bucket)};`);
+gate = gate.replace(/const ALLOWED_BUCKET_FILES = \[[\s\S]*?\];/, `const ALLOWED_BUCKET_FILES = ${JSON.stringify([...bucket])};`);
 writeFileSync(resolve(destTooling, "validate-module-file-map.mjs"), gate);
 
 const dBody = dMods.map((m) => {
@@ -273,6 +296,7 @@ writeFileSync(destOverview, html);
 
 const gen = spawnSync(node, [resolve(destTooling, "generate-module-graph.mjs"), root, "--depth=entry"], { encoding: "utf8" });
 process.stdout.write((gen.stdout || "") + (gen.stderr || ""));
+if (gen.status !== 0) process.exit(gen.status ?? 1);
 writeFileSync(destOverview, applyImportLayout(readFileSync(destOverview, "utf8"), dMods));
 
 const val = spawnSync(node, [resolve(destTooling, "validate-module-file-map.mjs"), root], { encoding: "utf8" });
@@ -287,11 +311,11 @@ function cardHtml(mod) {
 function flowOf(mods) {
   const cards = mods.map(cardHtml);
   if (cards.length <= 1) return `<div class="flow">${cards[0] || ""}</div>`;
-  const n = Math.min(cards.length, 8);
+  if (cards.length > 8) return `<div class="flow grid4">${cards.join("")}</div>`;
   const inner = cards.flatMap((c, i) => (
     i === 0 ? [c] : [`<div class="arr" aria-hidden="true"><svg><use href="#arr-to"/></svg></div>`, c]
   )).join("");
-  return `<div class="flow n${n}">${inner}</div>`;
+  return `<div class="flow n${cards.length}">${inner}</div>`;
 }
 
 function applyImportLayout(page, mods) {
