@@ -230,18 +230,26 @@ const slug = (posix) => posix.replace(/[^\w]+/g, "-").replace(/^-|-$/g, "").slic
 const extractIo = (posix) => {
   const src = readFileSync(resolve(root, posix), "utf8");
   const ext = extname(posix);
-  const names = [];
+  const sigs = [];
+  const push = (name, params, ret) => {
+    if (!name || name === "main" || name.startsWith("_")) return;
+    const p = (params || "").replace(/\s+/g, " ").trim().slice(0, 20);
+    const r = (ret || "导出").replace(/\s+/g, " ").trim().slice(0, 16);
+    sigs.push(`${name}(${p}) → ${r}`);
+  };
   if (PY_EXT.has(ext)) {
-    for (const m of src.matchAll(/^def\s+(\w+)\s*\(/gm)) names.push(m[1]);
-    for (const m of src.matchAll(/^class\s+(\w+)/gm)) names.push(m[1]);
+    for (const m of src.matchAll(/^def\s+(\w+)\s*\(([^)]*)\)\s*(?:->\s*([^:]+))?:/gm)) push(m[1], m[2], m[3]);
   } else if (RS_EXT.has(ext)) {
-    for (const m of src.matchAll(/\bpub\s+(?:async\s+)?fn\s+(\w+)/g)) names.push(m[1]);
+    for (const m of src.matchAll(/\bpub\s+(?:async\s+)?fn\s+(\w+)\s*\(([^)]*)\)\s*(?:->\s*([^{]+))?/g)) {
+      push(m[1], m[2], m[3]);
+    }
   } else if (JS_EXT.has(ext)) {
-    for (const m of src.matchAll(/\bexport\s+(?:async\s+)?function\s+(\w+)/g)) names.push(m[1]);
-    for (const m of src.matchAll(/\bexport\s+const\s+(\w+)\s*=/g)) names.push(m[1]);
+    for (const m of src.matchAll(/\bexport\s+(?:async\s+)?function\s+(\w+)\s*\(([^)]*)\)\s*(?::\s*([^{]+))?/g)) {
+      push(m[1], m[2], m[3]);
+    }
   }
-  const uniq = [...new Set(names.filter((n) => n !== "main"))].slice(0, 3);
-  return uniq.length ? `${uniq.map((n) => `${n}()`).join(", ")} → 导出` : "待读代码填写";
+  const uniq = [...new Set(sigs)].slice(0, 2);
+  return uniq.length ? uniq.join("；") : "待读代码填写";
 };
 
 const overviewPath = resolve(root, OVERVIEW_PATH);

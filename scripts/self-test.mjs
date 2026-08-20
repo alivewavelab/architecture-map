@@ -301,7 +301,7 @@ const okGrid = `<div class="flow n2"><div></div><div></div><div></div></div>`;
   mkdirSync(join(dir, "collectors"), { recursive: true });
   writeFileSync(join(dir, "agents/writer.py"), '"""把选题写成稿。"""\ndef write_draft():\n  return "ok"\n');
   writeFileSync(join(dir, "collectors/news.py"), "def collect_news():\n  return []\n");
-  writeFileSync(join(dir, "main.py"), "def run():\n  pass\n");
+  writeFileSync(join(dir, "main.py"), "from collectors.news import collect_news\n\ndef run():\n  return collect_news()\n");
   writeFileSync(join(dir, "README.md"), "# 咨询工作台\n\n采集消息再出稿。\n");
   const r = spawnSync(node, [join(here, "bootstrap-architecture-map.mjs"), dir], { encoding: "utf8" });
   const html = existsSync(join(dir, "docs/product/architecture-overview.html"))
@@ -309,9 +309,11 @@ const okGrid = `<div class="flow n2"><div></div><div></div><div></div></div>`;
     : "";
   const hasIo = html.includes("write_draft()") && html.includes("collect_news()");
   const hasMods = html.includes('"agents"') && html.includes('"collectors"') && html.includes('"workspace"');
-  r.status === 0 && hasIo && hasMods
-    ? pass("bootstrap：发现目录、从签名写 io、门禁通过")
-    : fail("bootstrap：发现目录、从签名写 io、门禁通过", (r.stderr || "") + (r.stdout || ""));
+  const hasJob = html.includes('data-view="job-workspace-to-collectors"') && html.includes("从启动到采消息");
+  const hasLanes = html.includes(">入口<") && html.includes(">落点<");
+  r.status === 0 && hasIo && hasMods && hasJob && hasLanes
+    ? pass("bootstrap：发现目录、签名 io、import 分层与作业页签")
+    : fail("bootstrap：发现目录、签名 io、import 分层与作业页签", (r.stderr || "") + (r.stdout || "") + (hasJob ? "" : "\nmissing job tab"));
   rmSync(dir, { recursive: true, force: true });
 }
 

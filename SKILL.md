@@ -19,7 +19,7 @@ description: 解读任意项目的代码结构并生成「产品总图」单文�
 
 ```
 Task Progress:
-- [ ] Step 1: 跑引导脚本（发现监视区 / 切模块 / 签名写 io）
+- [ ] Step 1: 跑引导脚本（发现监视区 / 切模块 / 签名写 io / import 分层与作业页签）
 - [ ] Step 2: 只改明显错的大白话（可选）
 - [ ] Step 3: 验证（门禁 + 截图复查）
 - [ ] Step 4: 登记同步纪律
@@ -33,7 +33,7 @@ Task Progress:
 node scripts/bootstrap-architecture-map.mjs [仓库根]
 ```
 
-已有总图时加 `--force` 才覆盖。脚本会：发现源码目录并写入 `WATCH_ZONES`（根入口用 `maxDepth: 0`，不递归整仓）、按目录切模块、从 README / docstring / `def` `export` `pub fn` 写 `plain` 与 `io`、复制门禁与生成器、跑 `--depth=entry`。
+已有总图时加 `--force` 才覆盖。脚本会：发现源码目录并写入 `WATCH_ZONES`（根入口用 `maxDepth: 0`，不递归整仓）、按目录切模块、从 README / docstring / 真实函数签名写 `plain` 与 `io`、复制门禁与生成器、跑 `--depth=entry`，再按 `#generated-graph` 的 import 边排「入口 / 处理 / 落点」，并加最多 3 条作业页签：优先从界面/启动走到落点，标题用动作词典（采消息 / 出稿 / 落盘），不编具体产品故事。
 
 Agent **不要**先手改 CONFIG 再出图。引导失败再补监视区。
 

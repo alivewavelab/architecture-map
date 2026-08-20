@@ -2,7 +2,7 @@
 
 // 安装后对仓库根跑一次：发现监视区、按目录切模块、从真实签名写 io、出总图并跑生成器。
 // 用法：node bootstrap-architecture-map.mjs [仓库根] [--force]
-// 不编造中文大白话：plain / io 来自 README 首句或 def / export / pub fn。
+// 不编造产品故事：plain / io 来自 README / docstring / 函数签名；作业页签来自真实 import 边。
 
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, extname, relative, resolve, sep } from "node:path";
@@ -94,22 +94,42 @@ const discoverZones = () => {
   return zones;
 };
 
+const FOLDER_ZH = {
+  workspace: "启动", agents: "出稿", collectors: "采消息", scrapers: "抓内容",
+  analysis: "选题", generation: "写稿", frontend: "给人点", web: "给人点",
+  utils: "落盘", workflows: "编排", scripts: "跑脚本", cli: "跑命令",
+  infra: "底座", interface: "人对面", orchestration: "编排", capabilities: "能力",
+  ai: "策略", bin: "跑命令", src: "源码",
+};
+const zhOf = (key, title, role) => {
+  if (key === "workspace" || title === "workspace") return role === "sink" ? "配置" : "启动";
+  return FOLDER_ZH[key] || FOLDER_ZH[title] || title;
+};
+
 const extractIo = (posix) => {
-  if (!existsSync(resolve(root, posix)) || posix.endsWith("/")) return "目录覆盖";
+  if (!posix || !existsSync(resolve(root, posix)) || posix.endsWith("/")) return "目录覆盖";
   const src = readFileSync(resolve(root, posix), "utf8");
   const ext = extname(posix);
-  const names = [];
+  const sigs = [];
+  const push = (name, params, ret) => {
+    if (!name || name === "main" || name.startsWith("_")) return;
+    const p = (params || "").replace(/\s+/g, " ").trim().slice(0, 20);
+    const r = (ret || "导出").replace(/\s+/g, " ").trim().slice(0, 16);
+    sigs.push(`${name}(${p}) → ${r}`);
+  };
   if (PY_EXT.has(ext)) {
-    for (const m of src.matchAll(/^def\s+(\w+)\s*\(/gm)) names.push(m[1]);
-    for (const m of src.matchAll(/^class\s+(\w+)/gm)) names.push(m[1]);
+    for (const m of src.matchAll(/^def\s+(\w+)\s*\(([^)]*)\)\s*(?:->\s*([^:]+))?:/gm)) push(m[1], m[2], m[3]);
   } else if (RS_EXT.has(ext)) {
-    for (const m of src.matchAll(/\bpub\s+(?:async\s+)?fn\s+(\w+)/g)) names.push(m[1]);
+    for (const m of src.matchAll(/\bpub\s+(?:async\s+)?fn\s+(\w+)\s*\(([^)]*)\)\s*(?:->\s*([^{]+))?/g)) {
+      push(m[1], m[2], m[3]);
+    }
   } else if (JS_EXT.has(ext)) {
-    for (const m of src.matchAll(/\bexport\s+(?:async\s+)?function\s+(\w+)/g)) names.push(m[1]);
-    for (const m of src.matchAll(/\bexport\s+const\s+(\w+)\s*=/g)) names.push(m[1]);
+    for (const m of src.matchAll(/\bexport\s+(?:async\s+)?function\s+(\w+)\s*\(([^)]*)\)\s*(?::\s*([^{]+))?/g)) {
+      push(m[1], m[2], m[3]);
+    }
   }
-  const uniq = [...new Set(names.filter((n) => n !== "main"))].slice(0, 3);
-  return uniq.length ? `${uniq.map((n) => `${n}()`).join(", ")} → 导出` : `${posix.split("/").pop()} → 导出`;
+  const uniq = [...new Set(sigs)].slice(0, 2);
+  return uniq.length ? uniq.join("；") : `${posix.split("/").pop()} → 导出`;
 };
 
 const firstDoc = (posix) => {
@@ -138,8 +158,10 @@ const slug = (dir) => {
 
 const pickEntry = (files) => {
   const ranked = files.filter((f) => SOURCE_EXT.has(extname(f)));
-  const prefer = ranked.find((f) => /(?:^|\/)(main|index|mod|__init__|app|page)\.[^/]+$/.test(toPosix(f)));
-  return prefer || ranked[0];
+  const prefer = ranked.find((f) => /(?:^|\/)(main|index|mod|app|page)\.[^/]+$/.test(toPosix(f)));
+  if (prefer) return prefer;
+  const notInit = ranked.find((f) => !/(?:^|\/)__init__\.py$/.test(toPosix(f)));
+  return notInit || ranked[0];
 };
 
 const js = (value) => JSON.stringify(value);
@@ -182,21 +204,23 @@ for (const zone of zones) {
   const entryAbs = pickEntry(zone.files);
   const entry = entryAbs ? toPosix(entryAbs) : include[0];
   const doc = firstDoc(entry) || readmePlain();
-  const title = zone.dir === "." ? "Workspace" : zone.dir.split("/").pop();
+  const title = zone.dir === "." ? "workspace" : zone.dir.split("/").pop();
+  const label = zhOf(key, title);
   const files = [];
   if (include[0].endsWith("/")) {
     files.push({ id: "dir", p: include[0], r: "本目录实现", io: "见目录内脚本" });
   }
+  const entryIo = entry && existsSync(resolve(root, entry)) && !entry.endsWith("/") ? extractIo(entry) : "";
   if (entry && existsSync(resolve(root, entry)) && !entry.endsWith("/")) {
-    files.push({ id: "entry", p: entry, r: entry.split("/").pop(), io: extractIo(entry) });
+    files.push({ id: "entry", p: entry, r: entry.split("/").pop(), io: entryIo });
   }
   dMods.push({
     key,
-    name: `${title}（${title}）`,
-    plain: (doc || `${title} 目录下的实现`).slice(0, 40),
-    role: `${title} 源码`,
-    inn: "本层输入",
-    out: "本层输出",
+    name: `${title}（${label}）`,
+    plain: (doc || `${label}：${title} 目录`).slice(0, 40),
+    role: label,
+    inn: entryIo ? entryIo.split("→")[0].trim() : "本层输入",
+    out: entryIo && entryIo.includes("→") ? entryIo.split("→").slice(-1)[0].trim() : "本层输出",
     status: "已通。",
     files,
   });
@@ -248,8 +272,115 @@ html = html.replace(/const D = \{[\s\S]*?\n\};/, `const D = {\n${dBody}\n};`);
 writeFileSync(destOverview, html);
 
 const gen = spawnSync(node, [resolve(destTooling, "generate-module-graph.mjs"), root, "--depth=entry"], { encoding: "utf8" });
-const val = spawnSync(node, [resolve(destTooling, "validate-module-file-map.mjs"), root], { encoding: "utf8" });
 process.stdout.write((gen.stdout || "") + (gen.stderr || ""));
+writeFileSync(destOverview, applyImportLayout(readFileSync(destOverview, "utf8"), dMods));
+
+const val = spawnSync(node, [resolve(destTooling, "validate-module-file-map.mjs"), root], { encoding: "utf8" });
 process.stdout.write((val.stdout || "") + (val.stderr || ""));
 if (val.status !== 0) process.exit(val.status ?? 1);
 console.log(`Bootstrapped ${dMods.length} modules → docs/product/architecture-overview.html`);
+
+function cardHtml(mod) {
+  return `<div role="button" tabindex="0" class="node" data-k="${mod.key}"><b>${mod.name}</b><small>${mod.plain}</small><span class="io"><em>输入：</em>${mod.inn}　<em>输出：</em>${mod.out}</span></div>`;
+}
+
+function flowOf(mods) {
+  const cards = mods.map(cardHtml);
+  if (cards.length <= 1) return `<div class="flow">${cards[0] || ""}</div>`;
+  const n = Math.min(cards.length, 8);
+  const inner = cards.flatMap((c, i) => (
+    i === 0 ? [c] : [`<div class="arr" aria-hidden="true"><svg><use href="#arr-to"/></svg></div>`, c]
+  )).join("");
+  return `<div class="flow n${n}">${inner}</div>`;
+}
+
+function applyImportLayout(page, mods) {
+  const byKey = new Map(mods.map((m) => [m.key, m]));
+  const keys = mods.map((m) => m.key);
+  let gen = { modules: {} };
+  const gm = page.match(/<script type="application\/json" id="generated-graph">([\s\S]*?)<\/script>/);
+  try { gen = JSON.parse(gm?.[1] || "{}"); } catch { /* empty */ }
+  const inbound = new Map(keys.map((k) => [k, new Set()]));
+  const outbound = new Map(keys.map((k) => [k, new Set()]));
+  for (const [from, rec] of Object.entries(gen.modules || {})) {
+    if (!outbound.has(from)) continue;
+    for (const f of rec.files || []) {
+      for (const e of f.extTo || []) {
+        if (e.m && inbound.has(e.m)) {
+          outbound.get(from).add(e.m);
+          inbound.get(e.m).add(from);
+        }
+      }
+    }
+  }
+  const sources = keys.filter((k) => inbound.get(k).size === 0);
+  const sinks = keys.filter((k) => outbound.get(k).size === 0 && inbound.get(k).size > 0);
+  const mid = keys.filter((k) => !sources.includes(k) && !sinks.includes(k));
+  const lane = (title, list) => list.length
+    ? `<div class="lane"><div class="lane-t">${title}</div>\n    ${list.length === 1 ? flowOf(list) : `<div class="flow grid4">${list.map(cardHtml).join("")}</div>`}\n  </div>`
+    : "";
+  const overall = [
+    lane("入口", sources.map((k) => byKey.get(k))),
+    lane("处理", mid.map((k) => byKey.get(k))),
+    lane("落点", sinks.map((k) => byKey.get(k))),
+  ].filter(Boolean).join("\n") || `<div class="lane"><div class="lane-t">实现</div>\n    ${flowOf(mods)}\n  </div>`;
+
+  const prefer = ["frontend", "web", "workspace", "cli", "bin", "scripts"];
+  const rank = (k) => { const i = prefer.indexOf(k); return i < 0 ? 99 : i; };
+  const pathTowardSink = (start) => {
+    const q = [[start]];
+    const seen = new Set([start]);
+    let best = [start];
+    while (q.length) {
+      const path = q.shift();
+      const cur = path[path.length - 1];
+      if (sinks.includes(cur) && path.length > 1) return path;
+      if (path.length > best.length) best = path;
+      for (const next of outbound.get(cur) || []) {
+        if (seen.has(next)) continue;
+        seen.add(next);
+        q.push([...path, next]);
+      }
+    }
+    return best;
+  };
+  const startKeys = [...new Set([
+    ...prefer.filter((k) => keys.includes(k) && outbound.get(k)?.size),
+    ...sources.filter((k) => outbound.get(k)?.size),
+  ])].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
+  const jobs = [];
+  for (const start of startKeys) {
+    const path = pathTowardSink(start);
+    if (path.length < 2) continue;
+    const id = `job-${path[0]}-to-${path[path.length - 1]}`.replace(/[^a-z0-9-]/g, "").slice(0, 40);
+    if (jobs.some((j) => j.id === id || (j.mods[0]?.key === path[0] && j.mods.at(-1)?.key === path.at(-1)))) continue;
+    jobs.push({
+      id,
+      label: `从${zhOf(path[0], path[0])}到${zhOf(path[path.length - 1], path[path.length - 1], sinks.includes(path[path.length - 1]) ? "sink" : "")}`,
+      mods: path.map((k) => byKey.get(k)).filter(Boolean),
+    });
+    if (jobs.length >= 3) break;
+  }
+
+  const tabs = [
+    `<button class="tab" type="button" data-view="overall" aria-pressed="true">全局流向</button>`,
+    ...jobs.map((j) => `<button class="tab" type="button" data-view="${j.id}" aria-pressed="false">${j.label}</button>`),
+  ].join("\n  ");
+  const jobViews = jobs.map((j) =>
+    `<section class="view" data-panel="${j.id}">
+  <div class="lane">
+    <div class="lane-t">${j.label}</div>
+    ${flowOf(j.mods)}
+  </div>
+</section>`).join("\n");
+
+  page = page.replace(
+    /<div class="tabs" role="group" aria-label="架构视图">[\s\S]*?<\/div>/,
+    `<div class="tabs" role="group" aria-label="架构视图">\n  ${tabs}\n</div>`,
+  );
+  page = page.replace(
+    /<section class="view is-on" data-panel="overall">[\s\S]*?<\/section>/,
+    `<section class="view is-on" data-panel="overall">\n  ${overall}\n</section>${jobViews ? `\n${jobViews}` : ""}`,
+  );
+  return page;
+}
