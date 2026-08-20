@@ -6,9 +6,8 @@
 <title>{{项目名}} 产品总图</title>
 <style>
   /*
-   * 视觉对齐 packages/ui/src/tokens/design-tokens.css（方向 F「装备整备室」）。
-   * 单文件离线约束：token 值在此内联，改动须回写 design-tokens.css 保持一致。
-   * 纪律：圆角 2px；无外投影；琥珀是唯一强调色；无绿色成功态。
+   * 深色「装备整备室」风格：圆角 2px；无外投影；琥珀是唯一强调色；无绿色成功态。
+   * 单文件离线：不引外部 CDN / 字体 / 脚本（布局库已内联）。
    */
   :root {
     color-scheme: dark;
@@ -116,15 +115,20 @@
   .drawer-bd { display: none; overflow: hidden; padding: var(--gc-space-2) var(--gc-space-3) var(--gc-space-3); border-top: 1px solid var(--gc-line); }
   .drawer[data-open="true"] .drawer-bd { display: flex; gap: var(--gc-space-3); height: var(--drawer-h); }
   .fx-side { width: 420px; flex: none; overflow: auto; padding-right: var(--gc-space-3); border-right: 1px solid var(--gc-line); }
-  .fx-main { flex: 1; min-width: 0; overflow: auto; }
+  .fx-main { flex: 1; min-width: 0; overflow: hidden; position: relative; }
+  .fx-viewport { width: 100%; height: 100%; overflow: hidden; cursor: grab; touch-action: none; }
+  .fx-viewport.is-pan { cursor: grabbing; }
+  .fx-svg { width: 100%; height: 100%; display: block; }
   .fx-name { margin: 0 0 var(--gc-space-2); color: var(--gc-bright); font-size: var(--gc-fs-title); line-height: 1.3; }
   .step { padding: 2px var(--gc-space-2); border-bottom: 2px solid var(--gc-surface-3); }
 
   .view { display: none; } .view.is-on { display: block; }
   .canvas { padding: var(--gc-space-3); border: 1px solid var(--gc-line); border-radius: var(--gc-radius-control); background: var(--gc-surface-1); }
   .lane { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: var(--gc-space-2); align-items: stretch; }
+  .lane > :not(.lane-t) { grid-column: 2; min-width: 0; }
   .lane-t { display: grid; place-items: center start; padding: var(--gc-space-2) var(--gc-space-1); border-right: 2px solid var(--gc-line); color: var(--gc-ink-2); font-family: var(--gc-font-stencil); font-size: var(--gc-fs-body); letter-spacing: 0.04em; }
   .flow { display: grid; align-items: stretch; column-gap: 0; }
+  .flow:has(> :only-child) { grid-template-columns: minmax(0, 1fr); }
   .flow.n2 { grid-template-columns: minmax(0,1fr) 44px minmax(0,1fr); }
   .flow.n3 { grid-template-columns: minmax(0,1fr) 44px minmax(0,1fr) 44px minmax(0,1fr); }
   .flow.n4 { grid-template-columns: minmax(0,1fr) 40px minmax(0,1fr) 40px minmax(0,1fr) 40px minmax(0,1fr); }
@@ -185,8 +189,7 @@
   .kv .k { color: var(--gc-ink-3); font-family: var(--gc-font-stencil); font-size: var(--gc-fs-micro); letter-spacing: 0.12em; text-transform: uppercase; }
   .kv .v { margin-top: 2px; color: var(--gc-ink); font-size: var(--gc-fs-body); line-height: var(--gc-leading-body); }
 
-  .fx-graph { padding: var(--gc-space-2) 0; }
-  .fx-graph svg { display: block; overflow: visible; }
+  .fx-graph { padding: 0; }
   .fx-node { cursor: grab; }
   .fx-node.drag { cursor: grabbing; }
   .fx-node text { user-select: none; pointer-events: none; }
@@ -215,6 +218,7 @@
   }
   @media (max-width: 560px) {
     .lane, .vlink { grid-template-columns: 1fr; }
+    .lane > :not(.lane-t) { grid-column: 1; }
     .lane-t { border-right: 0; border-bottom: 2px solid var(--gc-line); }
     .flow.n2, .flow.grid4 { grid-template-columns: 1fr; }
     .flow.n2 > .arr { height: 28px; transform: rotate(90deg); }
@@ -225,16 +229,15 @@
 </head>
 <body>
 <h1>{{项目名}} 产品总图</h1>
-<div class="sub">方框是模块（一揽子脚本的文件夹），右上角是脚本数。点任意模块：底部抽屉看它的脚本与上下游链路；点空白处或 × 收起。</div>
+<!-- Agent：方框是模块（一揽子脚本的文件夹），右上角是脚本数。点任意模块：底部抽屉看它的脚本与上下游链路；点空白处或 × 收起。 -->
 
-<details class="note-details"><summary>本页维护规则（Agent 向，看架构不用展开）</summary><div class="note">本页是产品总架构与模块概要的唯一真源，改关系就改这里。新模块硬门禁：建设计文档 + 在本页 module-registry 注册并补充节点 + 进度登记。模块的实现文件必须进图（含职责与输入输出），否则归属门禁 check:arch 判失败。脚本关系图跨模块引用：extTo/extFrom 条目可带 p（真实路径）+ m（归属模块名）画成虚线脚本盒，extLinks 画外部节点之间的边。</div></details>
+<details class="note-details"><summary>本页维护规则（Agent 向，看架构不用展开）</summary><div class="note">本页是产品总架构与模块概要的唯一真源，改关系就改这里。新模块：在本页 module-registry 注册并补充节点。点任何模块都在底部抽屉展开脚本图，不给个别模块做跳页签特例。模块的实现文件必须进图（含职责与输入输出），否则归属门禁判失败。脚本关系图跨模块引用：extTo/extFrom 条目可带 p（真实路径）+ m（归属模块名）画成虚线脚本盒，extLinks 画外部节点之间的边。</div></details>
 
 <details class="guide" open>
 <summary>怎么读这张图（30 秒版）</summary>
 <div class="guide-bd">
-<p>你点的每个按钮，请求像餐厅下单一样一层层往后传：</p>
-<div class="guide-flow">你（界面）→ 前台（收单分发）→ 调度（决定谁来做）→ 执行（真正干活）→ 存储（存结果、记流水）</div>
-<p>每个方框是一类职责，框里小字是大白话解释；虚线框是还没开始做的模块。点任意方框，底部弹出它的脚本与链路。</p>
+<div class="guide-flow">点任意方框 → 底部抽屉展开该模块的脚本与上下游</div>
+<!-- Agent：每个方框是一类职责，框里小字是大白话解释；虚线框是还没开始做的模块。请求怎么在模块之间流动，看卡片之间的箭头。脚本再多也在底部展开，没有「大模块」特例。点空白处或 × 收起。 -->
 </div>
 </details>
 
@@ -256,6 +259,7 @@
 <div class="layout">
 <div class="main">
 
+<!-- Agent：页签筛选——全局流向 = 全部模块分层；其余页签 = 一条真实用户作业从界面追到最终执行者。不要给编排引擎开目录墙页签，引擎点全局卡片看底部抽屉。给人看的导读不要放大段说明。 -->
 <div class="tabs" role="group" aria-label="架构视图">
   <button class="tab" type="button" data-view="overall" aria-pressed="true">全局流向</button>
 </div>
@@ -302,7 +306,7 @@
   <button class="drawer-close" type="button" id="drawer-close" title="关闭（或点图中空白处）" aria-label="关闭">×</button>
   </div>
   <div class="drawer-bd" id="drawer-bd">
-    <aside class="fx-side" id="fx-side"><span class="fx-hint">点击任一模块卡片：这里显示它的作用、输入、输出与现状，右侧列出实现脚本关系图。Business Flow / AI Workflow 两个大模块走顶部专属页签。</span></aside>
+    <aside class="fx-side" id="fx-side"><span class="fx-hint">点击任一模块卡片：这里显示它的作用、输入、输出与现状，右侧列出实现脚本关系图。脚本多就多，一律在底部展开。</span></aside>
     <div class="fx-main" id="fx-main"></div>
   </div>
 </div>
@@ -975,6 +979,11 @@ module.exports={Graph:require("./graph"),version:require("./version")}},{"./grap
  */function read(json){var g=new Graph(json.options).setGraph(json.value);json.nodes.forEach(function(entry){g.setNode(entry.v,entry.value);if(entry.parent){g.setParent(entry.v,entry.parent)}});json.edges.forEach(function(entry){g.setEdge({v:entry.v,w:entry.w,name:entry.name},entry.value)});return g}},{"./graph":44}],47:[function(require,module,exports){module.exports="2.2.4"},{}]},{},[1])(1)});
 </script>
 
+<!-- Agent：generated-graph 是 import 边骨架。mergeGeneratedGraph 只补缺口节点/边，不改 D 里的人话 io / r / plain。 -->
+<script type="application/json" id="generated-graph">
+{"modules":{}}
+</script>
+
 <script>
 const D = {
   // 每个模块一个 key（kebab-case）。模块 = 一揽子脚本的文件夹。
@@ -989,6 +998,45 @@ const D = {
   ] },
   "planned-module": { name: "Planned Module（未开始模块）", plain: "还没做，先占位", role: " planned ", inn: "…", out: "…", status: "未开始。", files: [] },
 };
+
+const mergeGeneratedGraph = () => {
+  const el = document.getElementById("generated-graph");
+  if (!el) return;
+  let g;
+  try { g = JSON.parse(el.textContent || "{}"); } catch { return; }
+  for (const [key, rec] of Object.entries(g.modules || {})) {
+    if (!D[key]) continue;
+    D[key].files = D[key].files || [];
+    const byP = new Map(D[key].files.map((f) => [f.p, f]));
+    for (const f of rec.files || []) {
+      if (byP.has(f.p)) continue;
+      const node = { id: f.id, p: f.p, r: f.r || f.p.replace(/\/+$/, "").split("/").pop(), io: "待读代码填写" };
+      D[key].files.push(node);
+      byP.set(f.p, node);
+    }
+    for (const f of rec.files || []) {
+      const node = byP.get(f.p);
+      if (!node) continue;
+      (f.to || []).forEach((edge) => {
+        if (edge.p && !byP.has(edge.p)) {
+          const dest = { id: edge.t, p: edge.p, r: edge.p.replace(/\/+$/, "").split("/").pop(), io: "待读代码填写" };
+          D[key].files.push(dest);
+          byP.set(edge.p, dest);
+        }
+        const destId = (edge.p && byP.get(edge.p)?.id) || edge.t;
+        node.to = node.to || [];
+        if (node.to.some((e) => e.t === destId || (edge.p && e.p === edge.p))) return;
+        node.to.push({ t: destId, io: edge.io });
+      });
+      (f.extTo || []).forEach((edge) => {
+        node.extTo = node.extTo || [];
+        if (node.extTo.some((e) => (edge.p && e.p === edge.p) || e.t === edge.t)) return;
+        node.extTo.push(edge);
+      });
+    }
+  }
+};
+mergeGeneratedGraph();
 
 const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
 const views = [...document.querySelectorAll(".view")];
@@ -1031,7 +1079,8 @@ const renderSide = (d) => {
   fxSide.innerHTML = "<h2 class='fx-name'>" + esc(d.name) + "</h2>" +
     (d.plain ? "<div class='fx-plain'>" + esc(d.plain) + "</div>" : "") +
     "<div class='kv'><div class='k'>现状</div><div class='v'>" + esc(d.status) +
-    "（<a href='../progress.md'>progress.md</a>）</div></div>" +
+    (d.statusHref ? "（<a href='" + esc(d.statusHref) + "'>" + esc(d.statusHrefLabel || d.statusHref) + "</a>）" : "") +
+    "</div></div>" +
     metaHtml(d) +
     techHtml(d);
 };
@@ -1041,7 +1090,7 @@ const renderDrawer = (d) => {
   if (!g) { fxMain.innerHTML = "<div class='fx-empty'>未开始，尚无实现文件。</div>"; return; }
   if (g.err) { fxMain.innerHTML = "<div class='fx-empty'>关系图渲染失败：" + esc(g.err) + "</div>"; return; }
   fxMain.innerHTML = g.html;
-  bindDrag(fxMain.querySelector("svg"), g.edges, g.pos);
+  bindViewport(fxMain.querySelector(".fx-viewport"), fxMain.querySelector("svg"), g.edges, g.pos);
 };
 
 const MONO = "'IBM Plex Mono', Consolas, 'Courier New', monospace";
@@ -1077,48 +1126,87 @@ const labelHtml = (lines, cx, cy) => {
     lines.map((ln, i) => "<tspan x='" + cx.toFixed(1) + "' dy='" + (i ? 12 : 0) + "'>" + esc(ln) + "</tspan>").join("") + "</text></g>";
 };
 
+const bezierEdge = (A, B, oa, ob) => {
+  const x1 = A.x + A.w + oa.dx, y1 = A.y + A.h / 2 + oa.dy;
+  const x2 = B.x + ob.dx, y2 = B.y + B.h / 2 + ob.dy;
+  const c = Math.max(48, Math.abs(x2 - x1) * 0.5);
+  const p1x = x1 + c, p2x = x2 - c;
+  const d = "M " + x1.toFixed(1) + " " + y1.toFixed(1) +
+    " C " + p1x.toFixed(1) + " " + y1.toFixed(1) + ", " +
+    p2x.toFixed(1) + " " + y2.toFixed(1) + ", " +
+    x2.toFixed(1) + " " + y2.toFixed(1);
+  return {
+    d,
+    lbl: {
+      cx: 0.125 * x1 + 0.375 * p1x + 0.375 * p2x + 0.125 * x2,
+      cy: 0.125 * y1 + 0.375 * y1 + 0.375 * y2 + 0.125 * y2,
+    },
+  };
+};
+
 const edgeHtml = (edges, pos, offs) => edges.map((e) => {
   const oa = offs.get(e.a) || { dx: 0, dy: 0 }, ob = offs.get(e.b) || { dx: 0, dy: 0 };
-  const moved = oa.dx || oa.dy || ob.dx || ob.dy;
-  let d, lbl = e.lbl;
-  if (!moved && e.pts) {
-    d = "M " + e.pts.map((p) => p.x.toFixed(1) + " " + p.y.toFixed(1)).join(" L ");
-  } else {
-    const A = pos.get(e.a), B = pos.get(e.b);
-    const x1 = A.x + A.w + oa.dx, y1 = A.y + A.h / 2 + oa.dy;
-    const x2 = B.x + ob.dx, y2 = B.y + B.h / 2 + ob.dy;
-    if (x2 > x1 + 8) {
-      const c = Math.max(40, (x2 - x1) / 2);
-      d = "M " + x1 + " " + y1 + " C " + (x1 + c) + " " + y1 + ", " + (x2 - c) + " " + y2 + ", " + x2 + " " + y2;
-      lbl = { cx: (x1 + x2) / 2, cy: (y1 + y2) / 2 };
-    } else {
-      const top = Math.min(A.y + oa.dy, B.y + ob.dy) - 16;
-      const sx = A.x + A.w / 2 + oa.dx, tx = B.x + B.w / 2 + ob.dx;
-      d = "M " + sx + " " + (A.y + oa.dy) + " L " + sx + " " + top + " L " + tx + " " + top + " L " + tx + " " + (B.y + ob.dy);
-      lbl = { cx: (sx + tx) / 2, cy: top - 2 };
-    }
-  }
+  const { d, lbl } = bezierEdge(pos.get(e.a), pos.get(e.b), oa, ob);
   let s = "<path d='" + d + "' fill='none' stroke='#8a8f96' stroke-width='1.8' marker-end='url(#fx-arr)'/>";
   if (e.lines.length && lbl) s += labelHtml(e.lines, lbl.cx, lbl.cy);
   return s;
 }).join("");
 
-const bindDrag = (svg, edges, pos) => {
+const bindViewport = (viewport, svg, edges, pos) => {
+  const world = svg.querySelector(".fx-world");
+  let tx = 12, ty = 12, scale = 1;
+  const apply = () => { world.setAttribute("transform", "translate(" + tx + " " + ty + ") scale(" + scale + ")"); };
+  apply();
+  const pt = svg.createSVGPoint();
+  const toSvg = (e) => { pt.x = e.clientX; pt.y = e.clientY; return pt.matrixTransform(svg.getScreenCTM().inverse()); };
+  const toWorld = (e) => { const p = toSvg(e); return { x: (p.x - tx) / scale, y: (p.y - ty) / scale }; };
+
+  viewport.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    const p = toSvg(e);
+    const next = Math.min(3, Math.max(0.25, scale * (e.deltaY < 0 ? 1.12 : 1 / 1.12)));
+    tx = p.x - (p.x - tx) * (next / scale);
+    ty = p.y - (p.y - ty) * (next / scale);
+    scale = next;
+    apply();
+  }, { passive: false });
+
+  viewport.addEventListener("pointerdown", (e) => {
+    if (e.target.closest(".fx-node")) return;
+    e.preventDefault();
+    viewport.setPointerCapture(e.pointerId);
+    viewport.classList.add("is-pan");
+    const p0 = toSvg(e);
+    const tx0 = tx, ty0 = ty;
+    const move = (ev) => {
+      const p = toSvg(ev);
+      tx = tx0 + p.x - p0.x;
+      ty = ty0 + p.y - p0.y;
+      apply();
+    };
+    const up = () => {
+      viewport.classList.remove("is-pan");
+      viewport.removeEventListener("pointermove", move);
+      viewport.removeEventListener("pointerup", up);
+    };
+    viewport.addEventListener("pointermove", move);
+    viewport.addEventListener("pointerup", up);
+  });
+
   const layer = svg.querySelector(".fx-edges");
   const offs = new Map();
   const redraw = () => { layer.innerHTML = edgeHtml(edges, pos, offs); };
-  const pt = svg.createSVGPoint();
-  const toSvg = (e) => { pt.x = e.clientX; pt.y = e.clientY; return pt.matrixTransform(svg.getScreenCTM().inverse()); };
   svg.querySelectorAll(".fx-node").forEach((g) => {
     g.addEventListener("pointerdown", (e) => {
       e.preventDefault();
+      e.stopPropagation();
       g.setPointerCapture(e.pointerId);
       g.classList.add("drag");
       const id = g.dataset.id;
-      const start = toSvg(e);
+      const start = toWorld(e);
       const o0 = offs.get(id) || { dx: 0, dy: 0 };
       const move = (ev) => {
-        const cur = toSvg(ev);
+        const cur = toWorld(ev);
         const o = { dx: o0.dx + cur.x - start.x, dy: o0.dy + cur.y - start.y };
         offs.set(id, o);
         g.setAttribute("transform", "translate(" + o.dx + " " + o.dy + ")");
@@ -1191,9 +1279,9 @@ const renderGraph = (d) => {
   });
   const W = Math.round(g.graph().width), H = Math.round(g.graph().height);
 
-  let out = "<svg width='" + W + "' height='" + H + "' viewBox='0 0 " + W + " " + H + "' role='img' aria-label='实现脚本关系图'>";
+  let out = "<svg class='fx-svg' role='img' aria-label='实现脚本关系图'>";
   out += "<defs><marker id='fx-arr' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='6' markerHeight='6' orient='auto-start-reverse'><path d='M 0 0 L 10 5 L 0 10 z' fill='#5f656d'/></marker></defs>";
-  out += "<g class='fx-edges'>" + edgeHtml(edges, pos, new Map()) + "</g>";
+  out += "<g class='fx-world'><g class='fx-edges'>" + edgeHtml(edges, pos, new Map()) + "</g>";
   nodes.forEach((n) => {
     const P = pos.get(n.id);
     if (n.ext && n.file) {
@@ -1210,8 +1298,8 @@ const renderGraph = (d) => {
         (n.io ? "<text x='" + (P.x + 10) + "' y='" + (P.y + 52) + "' fill='#d7d9dc' font-size='10' font-family=\"" + SANS + "\">" + esc(cut(n.io, 30)) + "</text>" : "") + "</g>";
     }
   });
-  out += "</svg>";
-  return { html: "<div class='fx-graph'>" + out + "</div>", edges, pos };
+  out += "</g></svg>";
+  return { html: "<div class='fx-viewport'>" + out + "</div>", edges, pos };
 };
 
 document.querySelectorAll(".node[data-k]").forEach((n) => {
@@ -1255,7 +1343,6 @@ const pick = (n) => {
   const view = n.closest(".view");
   view.querySelectorAll(".node.on").forEach((x) => x.classList.remove("on"));
   n.classList.add("on");
-  if ((k === "biz" || k === "aiw") && view.dataset.panel !== k) { show(k); window.scrollTo(0, 0); return; }
   renderSide(d);
   renderDrawer(d);
   drawerKey.textContent = d.name;
@@ -1269,7 +1356,8 @@ new ResizeObserver(syncBodyPad).observe(drawer);
 syncBodyPad();
 
 const grip = document.getElementById("drawer-grip");
-const savedH = parseInt(localStorage.getItem("gc-drawer-h") || "0", 10);
+const drawerHKey = "arch-map-drawer-h:" + (document.title || location.pathname);
+const savedH = parseInt(localStorage.getItem(drawerHKey) || "0", 10);
 if (savedH) drawer.style.setProperty("--drawer-h", savedH + "px");
 grip.addEventListener("pointerdown", (e) => {
   e.preventDefault();
@@ -1280,7 +1368,7 @@ grip.addEventListener("pointerdown", (e) => {
   const mv = (ev) => {
     const h = Math.min(window.innerHeight * 0.85, Math.max(140, h0 + y0 - ev.clientY));
     drawer.style.setProperty("--drawer-h", Math.round(h) + "px");
-    localStorage.setItem("gc-drawer-h", String(Math.round(h)));
+    localStorage.setItem(drawerHKey, String(Math.round(h)));
   };
   const up = () => {
     grip.classList.remove("drag");
