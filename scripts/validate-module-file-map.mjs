@@ -288,6 +288,7 @@ for (const zone of WATCH_ZONES) {
   for (const entry of walk(zoneAbs, zone.maxDepth ?? Infinity)) {
     const posix = toPosix(entry);
     if (EXCLUDED(posix)) continue;
+    if (!zone.exts.has(extname(entry))) continue;
     let cursor = dirname(entry);
     while (cursor.length > zoneAbs.length) {
       const name = cursor.split(sep).pop();
@@ -298,7 +299,6 @@ for (const zone of WATCH_ZONES) {
       }
       cursor = dirname(cursor);
     }
-    if (!zone.exts.has(extname(entry))) continue;
     if (NAME_EXEMPT.test(posix)) continue;
     const base = entry.split(sep).pop();
     if (BANNED_BASENAME.test(base) && !ALLOWED_BUCKET_FILES.includes(posix)) {

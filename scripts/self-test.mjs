@@ -174,6 +174,23 @@ const okGrid = `<div class="flow n2"><div></div><div></div><div></div></div>`;
 
 {
   const dir = makeRoot();
+  mkdirSync(join(dir, "web/static/article-tools"), { recursive: true });
+  writeFileSync(join(dir, "web/workspace_service.py"), "def handle():\n  pass\n");
+  writeFileSync(join(dir, "web/static/article-tools/x.html"), "<html></html>\n");
+  install(dir, {
+    zones: `[{ dir: "web", exts: new Set([".py"]), style: "snake" }]`,
+    map: { modules: { web: { designId: null, include: ["web/"] } }, unowned: [] },
+    html: overview(["web"], okGrid, { web: ["web/"] }),
+  });
+  const r = run(dir);
+  r.status === 0
+    ? pass("监视 .py 时不因静态连字符目录失败")
+    : fail("监视 .py 时不因静态连字符目录失败", r.stderr + r.stdout);
+  rmSync(dir, { recursive: true, force: true });
+}
+
+{
+  const dir = makeRoot();
   mkdirSync(join(dir, "src/alpha"), { recursive: true });
   mkdirSync(join(dir, "bin"), { recursive: true });
   writeFileSync(join(dir, "src/alpha/entry.ts"), "export const e = 1;\n");
