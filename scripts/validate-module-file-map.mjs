@@ -54,11 +54,12 @@ const FLOW_EXPECT = { n2: 3, n3: 5, n4: 7, n5: 9, n6: 11, n7: 13, n8: 15, shell:
 const EXCLUDED = (posix) =>
   TEST_FILE.test(posix) || GENERATED_PREFIXES.some((p) => posix.startsWith(p));
 
-const walk = (directory) => {
+const walk = (directory, depth = Infinity) => {
   if (!existsSync(directory)) return [];
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = resolve(directory, entry.name);
-    return entry.isDirectory() ? walk(path) : [path];
+    if (entry.isDirectory()) return depth > 0 ? walk(path, depth - 1) : [];
+    return [path];
   });
 };
 
@@ -149,7 +150,7 @@ for (const zone of WATCH_ZONES) {
     continue;
   }
   let count = 0;
-  for (const file of walk(zoneAbs)) {
+  for (const file of walk(zoneAbs, zone.maxDepth ?? Infinity)) {
     const posix = toPosix(file);
     if (!zone.exts.has(extname(file))) continue;
     allSourceFiles.push({ posix, style: normalizeStyle(zone.style), zone });
@@ -284,7 +285,7 @@ for (const zone of WATCH_ZONES) {
   const dirRule = dirReFor(zone);
   const nameRule = nameReFor(zone);
   const dirLabel = normalizeStyle(zone.style) === "snake" ? "snake_case" : "kebab-case / PascalCase";
-  for (const entry of walk(zoneAbs)) {
+  for (const entry of walk(zoneAbs, zone.maxDepth ?? Infinity)) {
     const posix = toPosix(entry);
     if (EXCLUDED(posix)) continue;
     let cursor = dirname(entry);

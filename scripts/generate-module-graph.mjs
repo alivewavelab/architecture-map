@@ -119,6 +119,40 @@ const resolvePyRel = (fromPosix, dots, rest) => {
   return tryFile(stem + ".py") || tryFile(stem + "/__init__.py");
 };
 
+const resolvePyAbs = (fromPosix, mod, names = []) => {
+  if (!mod || mod === "__future__") return [];
+  const rel = mod.replace(/\./g, "/");
+  const bases = [];
+  let dir = dirname(fromPosix);
+  while (true) {
+    bases.push(dir === "." ? "" : dir);
+    if (!dir || dir === ".") break;
+    const next = dirname(dir);
+    if (next === dir) break;
+    dir = next;
+  }
+  bases.push("");
+  const hits = [];
+  for (const base of [...new Set(bases)]) {
+    const stem = base ? `${base}/${rel}` : rel;
+    const asMod = tryFile(`${stem}.py`) || tryFile(`${stem}/__init__.py`);
+    if (asMod) hits.push(asMod);
+    for (const name of names) {
+      if (!/^[A-Za-z_]\w*$/.test(name) || name === "*") continue;
+      const sub = tryFile(`${stem}/${name}.py`) || tryFile(`${stem}/${name}/__init__.py`);
+      if (sub) hits.push(sub);
+    }
+  }
+  return hits;
+};
+
+const importedNames = (clause) =>
+  clause
+    .replace(/[()]/g, " ")
+    .split(",")
+    .map((part) => part.trim().split(/\s+as\s+/i)[0].trim())
+    .filter(Boolean);
+
 const rustRoots = () => {
   const roots = new Set();
   for (const m of Object.values(modules)) {
@@ -163,6 +197,16 @@ const parseImports = (posix) => {
     for (const m of src.matchAll(/^from\s+(\.+)([\w.]*)\s+import/gm)) {
       const hit = resolvePyRel(posix, m[1], m[2]);
       if (hit) out.push(hit);
+    }
+    for (const m of src.matchAll(/^from\s+([\w.]+)\s+import\s+(.+)$/gm)) {
+      if (m[1].startsWith(".")) continue;
+      out.push(...resolvePyAbs(posix, m[1], importedNames(m[2])));
+    }
+    for (const m of src.matchAll(/^import\s+([\w.]+(?:\s*,\s*[\w.]+)*)$/gm)) {
+      for (const spec of m[1].split(",")) {
+        const name = spec.trim().split(/\s+as\s+/i)[0].trim();
+        out.push(...resolvePyAbs(posix, name));
+      }
     }
     return out;
   }

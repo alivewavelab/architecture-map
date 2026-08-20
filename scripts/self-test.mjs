@@ -230,6 +230,54 @@ const okGrid = `<div class="flow n2"><div></div><div></div><div></div></div>`;
   rmSync(dir, { recursive: true, force: true });
 }
 
+{
+  const dir = makeRoot();
+  mkdirSync(join(dir, "src/alpha"), { recursive: true });
+  mkdirSync(join(dir, "src/beta"), { recursive: true });
+  writeFileSync(join(dir, "src/alpha/entry.py"), "from beta.core import b\n");
+  writeFileSync(join(dir, "src/beta/core.py"), "def b():\n  return 1\n");
+  writeFileSync(join(dir, "tooling/arch-module-graph/module-file-map.json"), JSON.stringify({
+    modules: {
+      alpha: { designId: null, include: ["src/alpha/"] },
+      beta: { designId: null, include: ["src/beta/"] },
+    },
+    unowned: [],
+  }, null, 2));
+  writeFileSync(join(dir, "docs/product/architecture-overview.html"), overview(
+    ["alpha", "beta"],
+    okGrid,
+    { alpha: ["src/alpha/entry.py"], beta: ["src/beta/core.py"] },
+  ));
+  const r = spawnSync(node, [join(here, "generate-module-graph.mjs"), dir, "--depth=all"], { encoding: "utf8" });
+  const html = readFileSync(join(dir, "docs/product/architecture-overview.html"), "utf8");
+  const m = html.match(/<script type="application\/json" id="generated-graph">([\s\S]*?)<\/script>/);
+  let gen = {};
+  try { gen = JSON.parse(m?.[1] || "{}"); } catch { /* empty */ }
+  const entry = gen.modules?.alpha?.files?.find((f) => f.p === "src/alpha/entry.py");
+  const ok = entry?.extTo?.some((e) => e.p === "src/beta/core.py" && e.m === "beta");
+  r.status === 0 && ok
+    ? pass("generate：Python 绝对导入写成 extTo")
+    : fail("generate：Python 绝对导入写成 extTo", (r.stderr || "") + (r.stdout || "") + "\n" + (m?.[1] || "no-json"));
+  rmSync(dir, { recursive: true, force: true });
+}
+
+{
+  const dir = makeRoot();
+  mkdirSync(join(dir, "web/static/article-tools"), { recursive: true });
+  writeFileSync(join(dir, "main.py"), "def run():\n  pass\n");
+  writeFileSync(join(dir, "web/static/article-tools/x.html"), "<html></html>\n");
+  install(dir, {
+    zones: `[{ dir: ".", exts: new Set([".py"]), style: "snake", maxDepth: 0 }]`,
+    map: { modules: { workspace: { designId: null, include: ["main.py"] } }, unowned: [] },
+    html: overview(["workspace"], okGrid, { workspace: ["main.py"] }),
+  });
+  const r = run(dir);
+  r.status === 0
+    ? pass("WATCH_ZONES maxDepth=0 不递归连字符目录")
+    : fail("WATCH_ZONES maxDepth=0 不递归连字符目录", r.stderr + r.stdout);
+  rmSync(dir, { recursive: true, force: true });
+}
+
 if (failed) {
   console.error(`self-test: ${failed} failed`);
   process.exit(1);

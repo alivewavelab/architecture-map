@@ -71,7 +71,7 @@ Task Progress:
 
 | 字段 | 作用 |
 | --- | --- |
-| `WATCH_ZONES` | **复制后必填**，默认空数组会失败。`{ dir, exts, style: "kebab"\|"snake"\|"kebab-strict" }`；可加 `allowEmpty` / `allowMissing`。`kebab` 默认放行 `Button.tsx` / `useDarkMode.ts` / `jwt-auth.guard.ts`；只要纯短横杠用 `kebab-strict` |
+| `WATCH_ZONES` | **复制后必填**，默认空数组会失败。`{ dir, exts, style: "kebab"\|"snake"\|"kebab-strict" }`；可加 `allowEmpty` / `allowMissing` / `maxDepth`（`0` = 只扫该层文件，根目录入口用这个，不要无脑 `dir: "."` 递归）。`kebab` 默认放行 `Button.tsx` / `useDarkMode.ts` / `jwt-auth.guard.ts`；只要纯短横杠用 `kebab-strict` |
 | `GENERATED_PREFIXES` | 生成物目录，所有规则都跳过；默认 `[]` |
 | `MAP_PATH` / `OVERVIEW_PATH` | 映射表与架构页 |
 | `ALLOWED_BUCKET_FILES` | 第三方固定桶文件白名单（如 shadcn `lib/utils.ts`） |
@@ -108,7 +108,7 @@ Task Progress:
 node tooling/arch-module-graph/generate-module-graph.mjs [--depth=entry|all]
 ```
 
-它只写 `<script id="generated-graph">`（相对 import / `from .` / `use crate::` / `mod foo`）。页面 `mergeGeneratedGraph()` 只补缺口节点和边，**不改** D 里已有的 `io` / `r` / `plain`。缺的 `io` 写成「待读代码填写」，必须读真实代码后再改 D。`--depth=entry`（默认）只扫 D 里已有的 `p`；`all` 扫每个 include 文件。中大型仓库用 `entry`，避免抽屉被上百个节点淹没。
+它只写 `<script id="generated-graph">`（相对 import / `from .` / Python 绝对包导入且文件存在 / `use crate::` / `mod foo`）。页面 `mergeGeneratedGraph()` 只补缺口节点和边，**不改** D 里已有的 `io` / `r` / `plain`。缺的 `io` 写成「待读代码填写」，必须读真实代码后再改 D。`--depth=entry`（默认）只扫 D 里已有的 `p`；`all` 扫每个 include 文件。中大型仓库用 `entry`，避免抽屉被上百个节点淹没。
 
 **Step 4: 验证（必须做，不许跳过）**
 
@@ -156,6 +156,7 @@ chrome --headless --disable-gpu --screenshot="$PWD/.tmp-review.png" --window-siz
 - 同一 `.lane` 里不要并列两个 `.flow`：多出来的会掉进左侧 92px 标签列。模板已用 `grid-column: 2` 兜底；门禁还查 `.flow.nK` 子元素数
 - 改完 HTML 必须截图复查，不许只跑语法检查就交付
 - 复制后门禁 `WATCH_ZONES` 默认是空的，不改会失败；不要从某个产品仓库抄 `client/src`
+- 根目录有入口文件时用 `{ dir: ".", maxDepth: 0 }`，不要递归扫整仓（静态资源连字符目录会红）
 - 只改了 `WATCH_ZONES` 却忘了改 `exts`：`.mjs` / `.py` 项目会全量误报或假绿
 - 平铺 `lib/` 用 glob（`src/lib/audio-*.ts`），不要手写上百条精确路径
 - Next.js / React：`kebab` 默认已放行 PascalCase / camelCase / `jwt-auth.guard.ts`；只要纯短横杠才写 `kebab-strict`
