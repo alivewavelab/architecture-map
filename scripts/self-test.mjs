@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -275,6 +275,26 @@ const okGrid = `<div class="flow n2"><div></div><div></div><div></div></div>`;
   r.status === 0
     ? pass("WATCH_ZONES maxDepth=0 不递归连字符目录")
     : fail("WATCH_ZONES maxDepth=0 不递归连字符目录", r.stderr + r.stdout);
+  rmSync(dir, { recursive: true, force: true });
+}
+
+{
+  const dir = makeRoot();
+  mkdirSync(join(dir, "agents"), { recursive: true });
+  mkdirSync(join(dir, "collectors"), { recursive: true });
+  writeFileSync(join(dir, "agents/writer.py"), '"""把选题写成稿。"""\ndef write_draft():\n  return "ok"\n');
+  writeFileSync(join(dir, "collectors/news.py"), "def collect_news():\n  return []\n");
+  writeFileSync(join(dir, "main.py"), "def run():\n  pass\n");
+  writeFileSync(join(dir, "README.md"), "# 咨询工作台\n\n采集消息再出稿。\n");
+  const r = spawnSync(node, [join(here, "bootstrap-architecture-map.mjs"), dir], { encoding: "utf8" });
+  const html = existsSync(join(dir, "docs/product/architecture-overview.html"))
+    ? readFileSync(join(dir, "docs/product/architecture-overview.html"), "utf8")
+    : "";
+  const hasIo = html.includes("write_draft()") && html.includes("collect_news()");
+  const hasMods = html.includes('"agents"') && html.includes('"collectors"') && html.includes('"workspace"');
+  r.status === 0 && hasIo && hasMods
+    ? pass("bootstrap：发现目录、从签名写 io、门禁通过")
+    : fail("bootstrap：发现目录、从签名写 io、门禁通过", (r.stderr || "") + (r.stdout || ""));
   rmSync(dir, { recursive: true, force: true });
 }
 

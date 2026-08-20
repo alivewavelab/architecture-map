@@ -227,6 +227,23 @@ const parseImports = (posix) => {
 
 const slug = (posix) => posix.replace(/[^\w]+/g, "-").replace(/^-|-$/g, "").slice(-40) || "f";
 
+const extractIo = (posix) => {
+  const src = readFileSync(resolve(root, posix), "utf8");
+  const ext = extname(posix);
+  const names = [];
+  if (PY_EXT.has(ext)) {
+    for (const m of src.matchAll(/^def\s+(\w+)\s*\(/gm)) names.push(m[1]);
+    for (const m of src.matchAll(/^class\s+(\w+)/gm)) names.push(m[1]);
+  } else if (RS_EXT.has(ext)) {
+    for (const m of src.matchAll(/\bpub\s+(?:async\s+)?fn\s+(\w+)/g)) names.push(m[1]);
+  } else if (JS_EXT.has(ext)) {
+    for (const m of src.matchAll(/\bexport\s+(?:async\s+)?function\s+(\w+)/g)) names.push(m[1]);
+    for (const m of src.matchAll(/\bexport\s+const\s+(\w+)\s*=/g)) names.push(m[1]);
+  }
+  const uniq = [...new Set(names.filter((n) => n !== "main"))].slice(0, 3);
+  return uniq.length ? `${uniq.map((n) => `${n}()`).join(", ")} → 导出` : "待读代码填写";
+};
+
 const overviewPath = resolve(root, OVERVIEW_PATH);
 const overview = readFileSync(overviewPath, "utf8");
 const dStarts = [...overview.matchAll(/^\s{2}"([a-z0-9-]+)":\s*\{\s*name:/gm)];
@@ -260,7 +277,7 @@ for (const [key, m] of Object.entries(modules)) {
       if (destOwner === key) to.push({ t: slug(dest), io: dest.split("/").pop(), p: dest });
       else if (destOwner) extTo.push({ t: dest.split("/").pop(), io: dest.split("/").pop(), p: dest, m: destOwner });
     }
-    const rec = { id: slug(posix), p: posix, r: posix.split("/").pop(), io: "待读代码填写" };
+    const rec = { id: slug(posix), p: posix, r: posix.split("/").pop(), io: extractIo(posix) };
     if (to.length) rec.to = to;
     if (extTo.length) rec.extTo = extTo;
     files.push(rec);

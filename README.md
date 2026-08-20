@@ -29,16 +29,16 @@ git clone https://github.com/alivewavelab/architecture-map.git ~/.cursor/skills/
 | [SKILL.md](SKILL.md) | Agent 五步工作流：解读 → 填 D 字典 → 建门禁 → 验证 → 登记纪律 |
 | [template.html](template.html) | 单文件交互模板（深色装备整备室风格，布局库已内联，可离线打开） |
 | [scripts/validate-module-file-map.mjs](scripts/validate-module-file-map.mjs) | 模块归属、命名、unowned 目录前缀、`.flow` 布局门禁；复制后只改顶部 CONFIG |
+| [scripts/bootstrap-architecture-map.mjs](scripts/bootstrap-architecture-map.mjs) | 对仓库根跑一次：发现监视区、切模块、从签名写 io、出总图 |
 | [scripts/generate-module-graph.mjs](scripts/generate-module-graph.mjs) | 从真实 import 写入 `#generated-graph`，不覆盖 D 人话 |
 | [scripts/capture-overview.mjs](scripts/capture-overview.mjs) | 有 Chrome / Edge 时截总图；没有浏览器不挡门禁 |
 | [scripts/self-test.mjs](scripts/self-test.mjs) | 门禁与生成器默认项自测 |
 
 ## 工作流（摘要）
 
-1. 按业务结果识别模块，每个模块能用一句大白话说明「它干什么」。
-2. 复制 `template.html` 到项目（建议 `docs/product/architecture-overview.html`），填 `const D = {...}`。每个脚本的 `io` 必须读真实代码后写。
-3. 复制门禁脚本，**必须先填 `WATCH_ZONES`**（默认空数组会失败），再建 `module-file-map.json`。跑 `generate-module-graph.mjs` 补 import 边（不改人话 `io`）。
-4. 跑门禁，再截图复查（不许只跑语法检查）。
+1. `node scripts/bootstrap-architecture-map.mjs [仓库根]`（发现监视区、按目录切模块、从签名写 io）。
+2. 打开总图。只有大白话明显错或模块切错时才手改。
+3. 跑门禁，再截图复查（不许只跑语法检查）。
 5. 在项目规范里写死：新模块要注册，新脚本要进图。
 
 完整步骤见 [SKILL.md](SKILL.md)。
